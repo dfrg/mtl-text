@@ -1,3 +1,4 @@
+use super::glyph_cache::GlyphCache;
 use metal::*;
 
 pub struct Renderer {
@@ -6,6 +7,7 @@ pub struct Renderer {
     pub queue: CommandQueue,
     pub width: u32,
     pub height: u32,
+    pub glyph_cache: GlyphCache,
 }
 
 impl Renderer {
@@ -22,6 +24,7 @@ impl Renderer {
             queue,
             width: 0,
             height: 0,
+            glyph_cache: GlyphCache::default(),
         }
     }
 
