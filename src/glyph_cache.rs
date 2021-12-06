@@ -24,7 +24,10 @@ pub struct GlyphEntry {
 
 #[derive(Default)]
 pub struct GlyphCache {
+    /// Alpha mask textures
     pub atlases: Vec<Atlas>,
+    /// RGBA textures
+    pub color_atlases: Vec<Atlas>,
     pub map: HashMap<GlyphKey, GlyphEntry>,
     // TODO: variations
 }
