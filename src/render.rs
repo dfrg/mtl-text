@@ -26,7 +26,6 @@ impl Renderer {
     }
 
     pub fn set_target_size(&mut self, width: u32, height: u32) {
-        use core_graphics_types::geometry::CGSize;
         self.layer
             .set_drawable_size(CGSize::new(width as f64, height as f64));
         self.width = width;

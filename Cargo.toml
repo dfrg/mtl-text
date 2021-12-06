@@ -7,9 +7,9 @@ edition = "2018"
 
 [dependencies]
 winit = "0.26.0"
-
-metal = "0.23.1"
-cocoa = "0.24.0"
-core-graphics-types = "0.1.1"
-objc = "0.2.7"
+smallvec = "1.6.1"
 swash = "0.1.4"
+
+metal = "0.22"
+cocoa = "0.24.0"
+objc = "0.2.5"

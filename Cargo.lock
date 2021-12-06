@@ -369,13 +369,13 @@ dependencies = [
 
 [[package]]
 name = "metal"
-version = "0.23.1"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0514f491f4cc03632ab399ee01e2c1c1b12d3e1cf2d667c1ff5f87d6dcd2084"
+checksum = "1c12e48c737ee9a55e8bb2352bcde588f79ae308d3529ee888f7cc0f469b5777"
 dependencies = [
  "bitflags",
  "block",
- "core-graphics-types",
+ "cocoa-foundation",
  "foreign-types",
  "log",
  "objc",
@@ -414,9 +414,9 @@ name = "mtl-text"
 version = "0.1.0"
 dependencies = [
  "cocoa",
- "core-graphics-types",
  "metal",
  "objc",
+ "smallvec",
  "swash",
  "winit",
 ]
