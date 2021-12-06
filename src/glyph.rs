@@ -13,6 +13,7 @@ pub struct Glyph {
     pub unique_id: u64,
     pub font_data: *const u8,
     pub font_data_len: u32,
+    pub font_size: f32,
     pub glyph_id: u16,
     pub transform: [f32; 6],
     pub bbox: [f32; 4],
