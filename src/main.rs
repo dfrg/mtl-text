@@ -26,23 +26,25 @@ fn main() {
     let size = window.inner_size();
     renderer.set_target_size(size.width, size.height);
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
-        use winit::event::Event;
-        match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(size) => {
-                    renderer.set_target_size(size.width, size.height);
+        autoreleasepool(|| {
+            *control_flow = ControlFlow::Wait;
+            use winit::event::Event;
+            match event {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::Resized(size) => {
+                        renderer.set_target_size(size.width, size.height);
+                    }
+                    _ => (),
+                },
+                Event::MainEventsCleared => {
+                    window.request_redraw();
                 }
-                _ => (),
-            },
-            Event::MainEventsCleared => {
-                window.request_redraw();
+                Event::RedrawRequested(_) => {
+                    renderer.render_color([0.2, 1.0, 0.25, 1.0]);
+                }
+                _ => {}
             }
-            Event::RedrawRequested(_) => {
-                renderer.render_color([0.2, 1.0, 0.25, 1.0]);
-            }
-            _ => {}
-        }
+        });
     });
 }
