@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 winit = "0.26.0"
 smallvec = "1.6.1"
 swash = "0.1.4"
+etagere = "0.2.6"
 
 metal = "0.22"
 cocoa = "0.24.0"
