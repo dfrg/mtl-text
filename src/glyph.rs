@@ -16,7 +16,8 @@ pub struct Glyph {
     pub font_size: f32,
     pub glyph_id: u16,
     pub transform: [f32; 6],
-    pub bbox: [f32; 4],
+    pub rect: [u16; 4],
+    pub subpx: f32,
     pub variations: *const FontVariation,
     pub num_variations: u32,
 }
