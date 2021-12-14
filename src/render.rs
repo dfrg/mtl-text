@@ -21,13 +21,14 @@ impl<G: GlyphRasterizer> Renderer<G> {
         layer.set_presents_with_transaction(false);
         let queue = device.new_command_queue();
         let glyph_rasterizer = G::new(&device);
+        let glyph_cache = GlyphCache::new(device.clone());
         Self {
             device,
             layer,
             queue,
             width: 0,
             height: 0,
-            glyph_cache: GlyphCache::default(),
+            glyph_cache,
             glyph_rasterizer,
         }
     }

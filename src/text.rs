@@ -28,8 +28,4 @@ impl<'a, G: GlyphRasterizer> TextLayoutBuilder<'a, G> {
         let glyphs = text.chars().map(|ch| charmap.map(ch)).collect();
         self.runs.push(BuilderRun { font, size, glyphs })
     }
-
-    pub fn build(mut self) -> TextLayout {
-        TextLayout {}
-    }
 }
