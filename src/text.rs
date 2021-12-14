@@ -1,8 +1,10 @@
 use super::font::Font;
+use super::glyph_rasterizer::GlyphRasterizer;
 use super::render::Renderer;
 
-pub struct TextLayoutBuilder<'a> {
-    renderer: &'a mut Renderer,
+pub struct TextLayoutBuilder<'a, G: GlyphRasterizer> {
+    renderer: &'a mut Renderer<G>,
+    max_width: f32,
     runs: Vec<BuilderRun>,
 }
 
@@ -12,10 +14,11 @@ struct BuilderRun {
     glyphs: Vec<u16>,
 }
 
-impl<'a> TextLayoutBuilder<'a> {
-    pub fn new(renderer: &'a mut Renderer) -> Self {
+impl<'a, G: GlyphRasterizer> TextLayoutBuilder<'a, G> {
+    pub fn new(renderer: &'a mut Renderer<G>, max_width: f32) -> Self {
         Self {
             renderer,
+            max_width,
             runs: vec![],
         }
     }
@@ -30,5 +33,3 @@ impl<'a> TextLayoutBuilder<'a> {
         TextLayout {}
     }
 }
-
-pub struct TextLayout {}

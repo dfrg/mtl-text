@@ -17,7 +17,8 @@ fn main() {
         .with_title("Metal Text")
         .build(&event_loop)
         .unwrap();
-    let mut renderer = mtl_text::render::Renderer::new();
+    use mtl_text::glyph_rasterizer::SoftwareGlyphRasterizer;
+    let mut renderer = mtl_text::render::Renderer::<SoftwareGlyphRasterizer>::new();
     unsafe {
         let view = window.ns_view() as cocoa_id;
         view.setWantsLayer(YES);
@@ -27,7 +28,7 @@ fn main() {
     renderer.set_target_size(size.width, size.height);
     event_loop.run(move |event, _, control_flow| {
         autoreleasepool(|| {
-            *control_flow = ControlFlow::Wait;
+            *control_flow = ControlFlow::Poll;
             use winit::event::Event;
             match event {
                 Event::WindowEvent { event, .. } => match event {
@@ -41,7 +42,7 @@ fn main() {
                     window.request_redraw();
                 }
                 Event::RedrawRequested(_) => {
-                    renderer.render_color([0.2, 1.0, 0.25, 1.0]);
+                    renderer.new_frame([0.2, 1.0, 0.25, 1.0]).render();
                 }
                 _ => {}
             }

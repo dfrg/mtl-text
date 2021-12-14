@@ -96,7 +96,7 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
             self.pixbuf.as_ptr() as _,
             self.stride as _,
         );
-        0xFFFFFFFF
+        !0
     }
 
     fn release(&mut self, _id: u32) {}
