@@ -64,7 +64,9 @@ impl GlyphCache {
             desc.set_width(ATLAS_SIZE as _);
             desc.set_height(ATLAS_SIZE as _);
             desc.set_pixel_format(format);
-            desc.set_usage(metal::MTLTextureUsage::ShaderRead | metal::MTLTextureUsage::ShaderWrite);
+            desc.set_usage(
+                metal::MTLTextureUsage::ShaderRead | metal::MTLTextureUsage::ShaderWrite,
+            );
             let texture = self.device.new_texture(&desc);
             *atlas = Some(Atlas {
                 texture,
@@ -75,7 +77,9 @@ impl GlyphCache {
             });
         }
         let atlas = atlas.as_mut()?;
-        let allocation = atlas.allocator.allocate(etagere::size2(width as i32, height as i32))?;
+        let allocation = atlas
+            .allocator
+            .allocate(etagere::size2(width as i32, height as i32))?;
         let rect = allocation.rectangle;
         let x0 = rect.min.x as f32 / ATLAS_SIZE as f32;
         let y0 = rect.min.y as f32 / ATLAS_SIZE as f32;
