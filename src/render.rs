@@ -1,6 +1,10 @@
-use super::glyph_cache::GlyphCache;
+use super::font::Font;
+use super::glyph_cache::{GlyphCache, GlyphKey, SubpixelOffset};
 use super::glyph_rasterizer::GlyphRasterizer;
+use super::text::Text;
 use metal::*;
+use std::ops::Range;
+use swash::scale::ScaleContext;
 
 pub struct Renderer<G> {
     pub device: Device,
@@ -10,6 +14,9 @@ pub struct Renderer<G> {
     pub height: u32,
     pub glyph_cache: GlyphCache,
     pub glyph_rasterizer: G,
+    scale_ctx: ScaleContext,
+    glyphs: Vec<RunGlyph>,
+    runs: Vec<RunRange>,
 }
 
 impl<G: GlyphRasterizer> Renderer<G> {
@@ -30,6 +37,9 @@ impl<G: GlyphRasterizer> Renderer<G> {
             height: 0,
             glyph_cache,
             glyph_rasterizer,
+            scale_ctx: ScaleContext::new(),
+            glyphs: vec![],
+            runs: vec![],
         }
     }
 
@@ -40,21 +50,64 @@ impl<G: GlyphRasterizer> Renderer<G> {
         self.height = height;
     }
 
-    pub fn new_frame(&mut self, clear_color: [f32; 4]) -> FrameRenderer<G> {
+    pub fn new_frame(&mut self, bg_color: [f32; 4]) -> FrameRenderer<G> {
+        self.glyphs.clear();
+        self.runs.clear();
         FrameRenderer {
             r: self,
-            clear_color,
+            bg_color,
+            flush_cache: false,
         }
     }
 }
 
 pub struct FrameRenderer<'a, G> {
     r: &'a mut Renderer<G>,
-    clear_color: [f32; 4],
+    bg_color: [f32; 4],
+    flush_cache: bool,
 }
 
 impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
-    pub fn render(self) {
+    pub fn draw_text(&mut self, x: f32, y: f32, text: &Text) {
+        for line in &text.lines {
+            let baseline = y + line.y + line.ascent;
+            let mut pen_x = x;
+            for run in &line.runs {
+                let start = self.r.glyphs.len();
+                for (id, advance) in run.ids.iter().zip(&run.advances) {
+                    let subpx = SubpixelOffset::quantize(pen_x);
+                    self.r.glyphs.push(RunGlyph {
+                        id: *id,
+                        x: pen_x,
+                        y: baseline,
+                    });
+                    if !self.flush_cache && self.r.glyph_cache.map.get(&GlyphKey {
+                        font_id: run.font.key,
+                        font_size: run.font_size.to_bits(),
+                        subpx,
+                        id: *id,
+                    }).is_none() {
+                        self.flush_cache = true;
+                    }
+                    pen_x += *advance;
+                }
+                let end = self.r.glyphs.len();
+                self.r.runs.push(RunRange {
+                    font: run.font.clone(),
+                    font_size: run.font_size,
+                    color: run.color,
+                    range: start..end,
+                });
+            }
+        }
+    }
+
+    pub fn render(mut self) {
+        if self.flush_cache {
+            self.render_uncached();
+        } else {
+            self.render_cached();
+        }
         let drawable = match self.r.layer.next_drawable() {
             Some(drawable) => drawable,
             None => return,
@@ -63,7 +116,7 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         let color_attachment = pass.color_attachments().object_at(0).unwrap();
         color_attachment.set_texture(Some(&drawable.texture()));
         color_attachment.set_load_action(MTLLoadAction::Clear);
-        let [r, g, b, a] = self.clear_color;
+        let [r, g, b, a] = self.bg_color;
         color_attachment.set_clear_color(MTLClearColor::new(r as _, g as _, b as _, a as _));
         color_attachment.set_store_action(MTLStoreAction::Store);
         let cmdbuf = self.r.queue.new_command_buffer();
@@ -72,4 +125,25 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         cmdbuf.present_drawable(&drawable);
         cmdbuf.commit();
     }
+
+    fn render_uncached(&mut self) {
+        self.r.glyph_cache.clear();
+    }
+
+    fn render_cached(&mut self) {
+
+    }
+}
+
+struct RunRange {
+    font: Font,
+    font_size: f32,
+    color: [f32; 4],
+    range: Range<usize>,
+}
+
+struct RunGlyph {
+    id: u16,
+    x: f32,
+    y: f32,
 }

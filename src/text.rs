@@ -14,6 +14,7 @@ pub struct Text {
 pub struct Run {
     pub font: Font,
     pub font_size: f32,
+    pub color: [f32; 4],
     pub ids: Vec<u16>,
     pub advances: Vec<f32>,
 }
@@ -36,7 +37,7 @@ impl TextBuilder {
         }
     }
 
-    pub fn add_text(mut self, font: &Font, font_size: f32, text: &str) -> Self {
+    pub fn add_text(mut self, font: &Font, font_size: f32, color: [f32; 4], text: &str) -> Self {
         let charmap = font.as_ref().charmap();
         let glyph_metrics = font.as_ref().glyph_metrics(&[]).scale(font_size);
         let metrics = font.as_ref().metrics(&[]).scale(font_size);
@@ -53,6 +54,7 @@ impl TextBuilder {
                 line.runs.push(Run {
                     font: font.clone(),
                     font_size,
+                    color,
                     ids: ids.clone(),
                     advances: advances.clone(),
                 });
@@ -62,7 +64,7 @@ impl TextBuilder {
             }
             line.ascent = line.ascent.max(ascent);
             line.descent = line.descent.max(descent);
-            self.y = line.y + line.ascent + line.descent;
+            self.y = (line.y + line.ascent + line.descent).round();
             self.lines.push(Line {
                 y: self.y,
                 ..Default::default()
@@ -78,6 +80,7 @@ impl TextBuilder {
             line.runs.push(Run {
                 font: font.clone(),
                 font_size,
+                color,
                 ids,
                 advances,
             });

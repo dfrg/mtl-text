@@ -14,12 +14,11 @@ pub struct GlyphKey {
     pub font_id: CacheKey,
     pub font_size: u32,
     pub subpx: SubpixelOffset,
-    pub glyph_id: u16,
+    pub id: u16,
 }
 
 #[derive(Copy, Clone)]
 pub struct GlyphEntry {
-    pub atlas: u16,
     pub is_color: bool,
     pub uv: [f32; 4],
     pub left: i32,
@@ -28,10 +27,8 @@ pub struct GlyphEntry {
 
 pub struct GlyphCache {
     device: Device,
-    /// Alpha mask textures
-    pub atlases: Vec<Atlas>,
-    /// RGBA textures
-    pub color_atlases: Vec<Atlas>,
+    pub alpha: Option<Atlas>,
+    pub color: Option<Atlas>,
     pub map: HashMap<GlyphKey, GlyphEntry>,
     // TODO: variations
 }
@@ -40,8 +37,8 @@ impl GlyphCache {
     pub fn new(device: Device) -> Self {
         Self {
             device,
-            atlases: vec![],
-            color_atlases: vec![],
+            alpha: None,
+            color: None,
             map: Default::default(),
         }
     }
@@ -57,55 +54,34 @@ impl GlyphCache {
         width: u32,
         height: u32,
     ) -> Option<&mut GlyphEntry> {
-        let atlases = if is_color {
-            &mut self.color_atlases
+        let (atlas, format) = if is_color {
+            (&mut self.color, metal::MTLPixelFormat::RGBA8Unorm)
         } else {
-            &mut self.atlases
+            (&mut self.alpha, metal::MTLPixelFormat::A8Unorm)
         };
-        let mut atlas_index = None;
-        let mut allocation = None;
-        for (i, atlas) in atlases.iter_mut().enumerate() {
-            if let Some(alloc) = atlas
-                .allocator
-                .allocate(etagere::size2(width as i32, height as i32))
-            {
-                atlas_index = Some(i);
-                allocation = Some(alloc);
-                break;
-            }
-        }
-        if atlas_index.is_none() {
-            atlas_index = Some(atlases.len());
-            let format = if is_color {
-                metal::MTLPixelFormat::RGBA8Unorm
-            } else {
-                metal::MTLPixelFormat::A8Unorm
-            };
+        if atlas.is_none() {
             let desc = metal::TextureDescriptor::new();
             desc.set_width(ATLAS_SIZE as _);
             desc.set_height(ATLAS_SIZE as _);
             desc.set_pixel_format(format);
+            desc.set_usage(metal::MTLTextureUsage::ShaderRead | metal::MTLTextureUsage::ShaderWrite);
             let texture = self.device.new_texture(&desc);
-            let mut atlas = Atlas {
+            *atlas = Some(Atlas {
                 texture,
                 allocator: etagere::AtlasAllocator::new(etagere::size2(
                     ATLAS_SIZE as i32,
                     ATLAS_SIZE as i32,
                 )),
-            };
-            allocation = atlas
-                .allocator
-                .allocate(etagere::size2(width as i32, height as i32));
-            atlases.push(atlas);
+            });
         }
-        let (atlas_index, allocation) = (atlas_index?, allocation?);
+        let atlas = atlas.as_mut()?;
+        let allocation = atlas.allocator.allocate(etagere::size2(width as i32, height as i32))?;
         let rect = allocation.rectangle;
         let x0 = rect.min.x as f32 / ATLAS_SIZE as f32;
         let y0 = rect.min.y as f32 / ATLAS_SIZE as f32;
         let x1 = (rect.min.x as f32 + width as f32) / ATLAS_SIZE as f32;
         let y1 = (rect.min.y as f32 + height as f32) / ATLAS_SIZE as f32;
         let entry = GlyphEntry {
-            atlas: atlas_index as u16,
             is_color,
             uv: [x0, y0, x1, y1],
             left: 0,
@@ -116,13 +92,7 @@ impl GlyphCache {
     }
 
     pub fn clear(&mut self) {
-        while self.atlases.len() > 1 {
-            self.atlases.pop();
-        }
-        while self.color_atlases.len() > 1 {
-            self.color_atlases.pop();
-        }
-        for atlas in self.atlases.iter_mut().chain(self.color_atlases.iter_mut()) {
+        for atlas in self.alpha.iter_mut().chain(self.color.iter_mut()) {
             atlas.allocator.clear();
         }
         self.map.clear();
