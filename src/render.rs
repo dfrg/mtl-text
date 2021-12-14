@@ -220,9 +220,7 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         }
     }
 
-    fn render_cached(&mut self) {
-        
-    }
+    fn render_cached(&mut self) {}
 }
 
 struct RunRange {
@@ -238,4 +236,55 @@ struct RunGlyph {
     x: f32,
     y: f32,
     subpx: SubpixelOffset,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+struct Vertex {
+    pos: [f32; 2],
+    uv: [f32; 2],
+    color: [u8; 4],
+}
+
+const VERTEX_SIZE: usize = std::mem::size_of::<Vertex>();
+fn buffer_options() -> metal::MTLResourceOptions {
+    metal::MTLResourceOptions::CPUCacheModeDefaultCache
+        | metal::MTLResourceOptions::StorageModeManaged
+}
+
+struct Quads {
+    device: Device,
+    vertices: Vec<Vertex>,
+    indices: Vec<u32>,
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    buffer_cap: usize,
+    ranges: Vec<(u32, u32, bool)>,
+}
+
+impl Quads {
+    fn new(device: &Device) -> Self {
+        let buffer_cap = 256;
+        Self {
+            device: device.clone(),
+            vertices: vec![],
+            indices: vec![],
+            vertex_buffer: device.new_buffer((buffer_cap * 4 * VERTEX_SIZE) as _, buffer_options()),
+            index_buffer: device.new_buffer((buffer_cap * 6 * 4) as _, buffer_options()),
+            buffer_cap,
+            ranges: vec![],
+        }
+    }
+
+    fn prepare(&mut self, num_glyphs: usize) {
+        if self.buffer_cap < num_glyphs {
+            self.vertex_buffer = self
+                .device
+                .new_buffer((num_glyphs * 4 * VERTEX_SIZE) as _, buffer_options());
+            self.index_buffer = self
+                .device
+                .new_buffer((num_glyphs * 6 * 4) as _, buffer_options());
+            self.buffer_cap = num_glyphs;
+        }
+    }
 }
