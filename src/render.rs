@@ -101,7 +101,7 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                     let subpx = SubpixelOffset::quantize(pen_x);
                     self.r.glyphs.push(RenderGlyph {
                         id: *id,
-                        x: pen_x.floor(),
+                        x: (pen_x + 0.125).floor(),
                         y: baseline,
                         subpx,
                     });
