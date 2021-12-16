@@ -7,6 +7,8 @@ use std::ops::Range;
 use swash::scale::{outline::Outline, ScaleContext};
 use swash::zeno::{Origin, Placement};
 
+const TARGET_FORMAT: MTLPixelFormat = MTLPixelFormat::BGRA8Unorm;
+
 pub struct Renderer<G> {
     pub layer: MetalLayer,
     device: Device,
@@ -16,9 +18,11 @@ pub struct Renderer<G> {
     glyph_cache: GlyphCache,
     glyph_rasterizer: G,
     scale_ctx: ScaleContext,
-    glyphs: Vec<RunGlyph>,
-    runs: Vec<RunRange>,
-    quads: Quads,
+    glyphs: Vec<RenderGlyph>,
+    runs: Vec<RenderRun>,
+    quads: QuadBatch,
+    alpha_pso: RenderPipelineState,
+    color_pso: RenderPipelineState,
 }
 
 impl<G: GlyphRasterizer> Renderer<G> {
@@ -26,12 +30,19 @@ impl<G: GlyphRasterizer> Renderer<G> {
         let device = Device::system_default().expect("no metal device available");
         let layer = MetalLayer::new();
         layer.set_device(&device);
-        layer.set_pixel_format(MTLPixelFormat::BGRA8Unorm);
+        layer.set_pixel_format(TARGET_FORMAT);
         layer.set_presents_with_transaction(false);
         let queue = device.new_command_queue();
         let glyph_rasterizer = G::new(&device);
         let glyph_cache = GlyphCache::new(device.clone());
-        let quads = Quads::new(&device);
+        let quads = QuadBatch::new(&device);
+        let options = CompileOptions::new();
+        options.set_language_version(MTLLanguageVersion::V2_2);
+        let library = device
+            .new_library_with_source(SHADER_SOURCE, &options)
+            .unwrap();
+        let alpha_pso = build_pso(&device, &library, "alpha_frag");
+        let color_pso = build_pso(&device, &library, "color_frag");
         Self {
             device,
             layer,
@@ -44,6 +55,8 @@ impl<G: GlyphRasterizer> Renderer<G> {
             glyphs: vec![],
             runs: vec![],
             quads,
+            alpha_pso,
+            color_pso,
         }
     }
 
@@ -86,7 +99,7 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                 let start = self.r.glyphs.len();
                 for (id, advance) in run.ids.iter().zip(&run.advances) {
                     let subpx = SubpixelOffset::quantize(pen_x);
-                    self.r.glyphs.push(RunGlyph {
+                    self.r.glyphs.push(RenderGlyph {
                         id: *id,
                         x: pen_x.floor(),
                         y: baseline,
@@ -117,12 +130,12 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                     (b * 255.) as u8,
                     (a * 255.) as u8,
                 ];
-                self.r.runs.push(RunRange {
+                self.r.runs.push(RenderRun {
                     font: run.font.clone(),
                     font_size: run.font_size,
                     is_color,
                     color,
-                    range: start..end,
+                    glyphs: start..end,
                 });
             }
         }
@@ -160,7 +173,7 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         self.r.glyph_cache.clear();
         let mut outline = Outline::new();
         let alpha = self.r.runs.iter().filter(|r| !r.is_color);
-        let color = self.r.runs.iter().filter(|r| r.is_color);
+        let _color = self.r.runs.iter().filter(|r| r.is_color);
         self.r
             .glyph_rasterizer
             .begin(Format::A8, ATLAS_SIZE, ATLAS_SIZE);
@@ -171,8 +184,8 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                 .builder(run.font.as_ref())
                 .size(run.font_size)
                 .build();
-            let glyphs = self.r.glyphs.get(run.range.clone()).unwrap();
-            for (i, glyph) in glyphs.iter().enumerate() {
+            let glyphs = self.r.glyphs.get(run.glyphs.clone()).unwrap();
+            for glyph in glyphs {
                 let key = GlyphKey {
                     font_id: run.font.key,
                     font_size: run.font_size.to_bits(),
@@ -227,15 +240,15 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
     }
 }
 
-struct RunRange {
+struct RenderRun {
     font: Font,
     font_size: f32,
     is_color: bool,
     color: [u8; 4],
-    range: Range<usize>,
+    glyphs: Range<usize>,
 }
 
-struct RunGlyph {
+struct RenderGlyph {
     id: u16,
     x: f32,
     y: f32,
@@ -256,7 +269,7 @@ fn buffer_options() -> metal::MTLResourceOptions {
         | metal::MTLResourceOptions::StorageModeManaged
 }
 
-struct Quads {
+struct QuadBatch {
     device: Device,
     vertices: Vec<Vertex>,
     indices: Vec<u32>,
@@ -266,7 +279,7 @@ struct Quads {
     ranges: Vec<(u32, u32, bool)>,
 }
 
-impl Quads {
+impl QuadBatch {
     fn new(device: &Device) -> Self {
         let buffer_cap = 256;
         Self {
@@ -290,5 +303,84 @@ impl Quads {
                 .new_buffer((num_glyphs * 6 * 4) as _, buffer_options());
             self.buffer_cap = num_glyphs;
         }
+        self.vertices.clear();
+        self.indices.clear();
+        self.ranges.clear();
     }
 }
+
+fn build_pso(device: &Device, library: &Library, frag_name: &str) -> RenderPipelineState {
+    let desc = RenderPipelineDescriptor::new();
+    let vs = library.get_function("vert", None).unwrap();
+    let fs = library.get_function(frag_name, None).unwrap();
+    desc.set_vertex_function(Some(&vs));
+    desc.set_fragment_function(Some(&fs));
+    let attachment = desc.color_attachments().object_at(0).unwrap();
+    attachment.set_pixel_format(TARGET_FORMAT);
+    attachment.set_blending_enabled(true);
+    attachment.set_rgb_blend_operation(MTLBlendOperation::Add);
+    attachment.set_destination_rgb_blend_factor(MTLBlendFactor::OneMinusSourceAlpha);
+    attachment.set_source_rgb_blend_factor(MTLBlendFactor::SourceAlpha);
+    let vdesc = VertexDescriptor::new();
+    vdesc
+        .layouts()
+        .object_at(0)
+        .unwrap()
+        .set_stride(VERTEX_SIZE as _);
+    let pos = vdesc.attributes().object_at(0).unwrap();
+    pos.set_format(MTLVertexFormat::Float2);
+    let uv = vdesc.attributes().object_at(1).unwrap();
+    uv.set_format(MTLVertexFormat::Float2);
+    uv.set_offset(8);
+    let color = vdesc.attributes().object_at(2).unwrap();
+    color.set_format(MTLVertexFormat::UChar4Normalized);
+    color.set_offset(16);
+    desc.set_vertex_descriptor(Some(&vdesc));
+    device.new_render_pipeline_state(&desc).unwrap()
+}
+
+const SHADER_SOURCE: &str = r#"
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Vertex {
+    float2 pos [[attribute(0)]];
+    float2 uv [[attribute(1)]];
+    float4 color [[attribute(2)]];
+};
+
+struct FragData {
+    float4 pos [[position]];
+    float2 uv;
+    float4 color;
+};
+
+vertex FragData vert(
+    Vertex v [[stage_in]],
+	constant uint2 *viewport_size [[buffer(1)]]
+) {
+  FragData out;
+  out.pos = float4((v.pos / float2(*viewport_size)) * 2.0, 0.0, 1.0);
+  out.uv = v.uv;
+  out.color = v.color;
+  return out;
+}
+
+fragment float4 alpha_frag(
+  FragData in [[stage_in]],
+  texture2d<float> texture [[texture(0)]]
+ ) {
+  constexpr sampler samp (mag_filter::nearest, min_filter::nearest);
+  return texture.sample(samp, in.uv).a * in.color;
+}
+
+fragment float4 color_frag(
+    FragData in [[stage_in]],
+    texture2d<float> texture [[ texture(0) ]]
+   ) {
+    constexpr sampler samp (mag_filter::nearest, min_filter::nearest);
+    return texture.sample(samp, in.uv) * in.color;
+  }
+"#;

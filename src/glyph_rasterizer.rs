@@ -61,7 +61,9 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
             .size(glyph.font_size)
             .variations(glyph.variations().iter().map(|var| (var.tag, var.value)))
             .build();
-        let transform = Transform {
+        // Which components should be present here? piet-gpu and swash have
+        // different expectations
+        let _transform = Transform {
             xx: glyph.transform[0],
             xy: glyph.transform[1],
             yx: glyph.transform[2],
@@ -71,7 +73,8 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
         };
         Render::new(&[Source::ColorOutline(0), Source::Outline])
             .offset(Vector::new(glyph.subpx, 0.))
-            .transform(Some(transform))
+            // See above
+            // .transform(Some(transform))
             .render_into(&mut scaler, glyph.glyph_id, &mut self.image);
         let placement = self.image.placement;
         let channels = match self.format {
