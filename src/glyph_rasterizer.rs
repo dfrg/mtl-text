@@ -71,6 +71,7 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
             x: glyph.transform[4],
             y: glyph.transform[5],
         };
+        self.image.clear();
         Render::new(&[Source::ColorOutline(0), Source::Outline])
             .offset(Vector::new(glyph.subpx, 0.))
             // See above
@@ -81,6 +82,9 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
             Format::A8 => 1,
             Format::Rgba8 => 4,
         };
+        if placement.width == 0 || placement.height == 0 {
+            return;
+        }
         copy_rect(
             glyph.rect[0],
             glyph.rect[1],
@@ -123,4 +127,56 @@ fn copy_rect(
         offset += buffer_pitch;
     }
     Some(())
+}
+
+mod tga {
+    use std::fs::File;
+    use std::io::{self, Write};
+    use std::slice;
+    
+    fn write<W: Write, T>(w: &mut W, v: T) -> io::Result<()> {
+        let size = std::mem::size_of::<T>();
+        let bytes = unsafe { slice::from_raw_parts(&v as *const T as *const u8, size) };
+        w.write_all(bytes)
+    }
+    
+    pub fn write_image(buf: &[u8], width: u32, height: u32, channels: u32, path: &str) -> io::Result<()> {
+        let f = File::create(path)?;
+        let mut f = std::io::BufWriter::new(f);
+        let w = width as usize;
+        let h = height as usize;
+        let fp = &mut f;
+        write(fp, 0u16)?;
+        write(fp, 2u8)?;
+        write(fp, 0u32)?;
+        write(fp, 0u8)?;
+        write(fp, 0u32)?;
+        write(fp, w as u16)?;
+        write(fp, h as u16)?;
+        write(fp, 32u8)?;
+        write(fp, 0u8)?;
+        let channels = channels as usize;
+        for y in 0..h {
+            let line = h - y - 1;
+            let offset = line * w * channels;
+            let mut x = 0;
+            while x < w * channels {
+                let rgba = if channels == 1 {
+                    let v = buf[offset + x];
+                    [v, v, v, 255]
+                } else {
+                    [
+                        buf[offset + x + 2],
+                        buf[offset + x + 1],
+                        buf[offset + x],
+                        buf[offset + x + 3],
+                    ]
+                };
+                write(fp, rgba)?;
+                x += channels;
+            }
+        }
+        f.flush()?;
+        io::Result::Ok(())
+    }
 }

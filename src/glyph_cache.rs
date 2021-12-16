@@ -21,8 +21,10 @@ pub struct GlyphKey {
 pub struct GlyphEntry {
     pub is_color: bool,
     pub uv: [f32; 4],
-    pub left: i32,
-    pub top: i32,
+    pub left: i16,
+    pub top: i16,
+    pub width: u16,
+    pub height: u16,
 }
 
 pub struct GlyphCache {
@@ -51,8 +53,8 @@ impl GlyphCache {
         &mut self,
         key: GlyphKey,
         is_color: bool,
-        width: u32,
-        height: u32,
+        width: u16,
+        height: u16,
     ) -> Option<&mut GlyphEntry> {
         let (atlas, format) = if is_color {
             (&mut self.color, metal::MTLPixelFormat::RGBA8Unorm)
@@ -82,6 +84,8 @@ impl GlyphCache {
                 uv: [0.0; 4],
                 left: 0,
                 top: 0,
+                width,
+                height,
             }
         } else {
             let atlas = atlas.as_mut()?;
@@ -98,6 +102,8 @@ impl GlyphCache {
                 uv: [x0, y0, x1, y1],
                 left: 0,
                 top: 0,
+                width,
+                height,
             }
         };
         self.map.insert(key, entry);

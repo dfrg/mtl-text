@@ -145,6 +145,29 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         if self.flush_cache {
             self.build_cache();
         }
+        self.r.quads.prepare(self.r.glyphs.len());
+        for run in &self.r.runs {
+            let glyphs = self.r.glyphs.get(run.glyphs.clone()).unwrap();
+            for glyph in glyphs {
+                if let Some(entry) = self.r.glyph_cache.map.get(&GlyphKey {
+                    font_id: run.font.key,
+                    font_size: run.font_size.to_bits(),
+                    subpx: glyph.subpx,
+                    id: glyph.id,
+                }) {
+                    let x0 = glyph.x + entry.left as f32;
+                    let y0 = glyph.y - entry.top as f32;
+                    let x1 = x0 + entry.width as f32;
+                    let y1 = y0 + entry.height as f32;
+                    if entry.width != 0 && entry.height != 0 {
+                        self.r
+                            .quads
+                            .add_rect(&[x0, y0, x1, y1], &entry.uv, run.color);
+                    }
+                }
+            }
+        }
+        self.r.quads.update_buffers();
         let drawable = match self.r.layer.next_drawable() {
             Some(drawable) => drawable,
             None => return,
@@ -158,9 +181,20 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         color_attachment.set_store_action(MTLStoreAction::Store);
         let cmdbuf = self.r.queue.new_command_buffer();
         let encoder = cmdbuf.new_render_command_encoder(&pass);
-
-        self.r.quads.prepare(self.r.glyphs.len());
-
+        if let Some(alpha_atlas) = self.r.glyph_cache.alpha.as_ref() {
+            let vp_size = [self.r.width, self.r.height];
+            encoder.set_render_pipeline_state(&self.r.alpha_pso);
+            encoder.set_vertex_buffer(0, Some(&self.r.quads.vertex_buffer), 0);
+            encoder.set_vertex_bytes(1, 8, vp_size.as_ptr() as _);
+            encoder.set_fragment_texture(0, Some(&alpha_atlas.texture));
+            encoder.draw_indexed_primitives(
+                MTLPrimitiveType::Triangle,
+                self.r.quads.indices.len() as _,
+                MTLIndexType::UInt32,
+                &self.r.quads.index_buffer,
+                0,
+            );
+        }
         encoder.end_encoding();
         cmdbuf.present_drawable(&drawable);
         cmdbuf.commit();
@@ -197,13 +231,14 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                 }
                 let bounds = outline.bounds();
                 let (offset, placement) = Placement::compute(Origin::BottomLeft, (0, 0), &bounds);
-                if let Some(entry) =
-                    self.r
-                        .glyph_cache
-                        .insert(key, false, placement.width, placement.height)
-                {
-                    entry.left = placement.left;
-                    entry.top = placement.top;
+                if let Some(entry) = self.r.glyph_cache.insert(
+                    key,
+                    false,
+                    placement.width as u16,
+                    placement.height as u16,
+                ) {
+                    entry.left = placement.left as i16;
+                    entry.top = placement.top as i16;
                     let transform = [1.0, 0.0, 0.0, 1.0, offset.x, offset.y];
                     let font = run.font.as_ref();
                     let rect = [
@@ -307,6 +342,57 @@ impl QuadBatch {
         self.indices.clear();
         self.ranges.clear();
     }
+
+    fn add_rect(&mut self, rect: &[f32; 4], uv: &[f32; 4], color: [u8; 4]) {
+        let verts = [
+            Vertex {
+                pos: [rect[0], rect[1]],
+                uv: [uv[0], uv[1]],
+                color,
+            },
+            Vertex {
+                pos: [rect[0], rect[3]],
+                uv: [uv[0], uv[3]],
+                color,
+            },
+            Vertex {
+                pos: [rect[2], rect[3]],
+                uv: [uv[2], uv[3]],
+                color,
+            },
+            Vertex {
+                pos: [rect[2], rect[1]],
+                uv: [uv[2], uv[1]],
+                color,
+            },
+        ];
+        let vertex_base = self.vertices.len() as u32;
+        self.vertices.extend_from_slice(&verts);
+        const QUAD_INDICES: [u32; 6] = [0, 1, 2, 2, 0, 3];
+        self.indices
+            .extend(QUAD_INDICES.iter().map(|i| i + vertex_base));
+    }
+
+    fn update_buffers(&mut self) {
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                self.vertices.as_ptr(),
+                self.vertex_buffer.contents() as *mut _,
+                self.vertices.len(),
+            );
+            self.vertex_buffer.did_modify_range(metal::NSRange::new(
+                0,
+                (self.vertices.len() * VERTEX_SIZE) as _,
+            ));
+            std::ptr::copy_nonoverlapping(
+                self.indices.as_ptr(),
+                self.index_buffer.contents() as *mut _,
+                self.indices.len(),
+            );
+            self.index_buffer
+                .did_modify_range(metal::NSRange::new(0, (self.indices.len() * 4) as _));
+        }
+    }
 }
 
 fn build_pso(device: &Device, library: &Library, frag_name: &str) -> RenderPipelineState {
@@ -363,6 +449,8 @@ vertex FragData vert(
 ) {
   FragData out;
   out.pos = float4((v.pos / float2(*viewport_size)) * 2.0, 0.0, 1.0);
+  out.pos.x -= 1.0;
+  out.pos.y = 1.0 - out.pos.y;
   out.uv = v.uv;
   out.color = v.color;
   return out;
