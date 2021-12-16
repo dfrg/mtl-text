@@ -26,6 +26,8 @@ fn main() {
     }
     let size = window.inner_size();
     renderer.set_target_size(size.width, size.height);
+    let font = mtl_text::font::Font::from_file("/System/Library/Fonts/menlo.ttc")
+        .expect("could not load font");
     event_loop.run(move |event, _, control_flow| {
         autoreleasepool(|| {
             *control_flow = ControlFlow::Poll;
@@ -42,7 +44,12 @@ fn main() {
                     window.request_redraw();
                 }
                 Event::RedrawRequested(_) => {
-                    renderer.new_frame([0.2, 1.0, 0.25, 1.0]).render();
+                    let text = mtl_text::text::TextBuilder::new(None)
+                        .add_text(&font, 24., [0., 0., 0., 1.], "Hello Metal!")
+                        .build();
+                    let mut frame = renderer.new_frame([0.2, 1.0, 0.25, 1.0]);
+                    frame.draw_text(20., 20., &text);
+                    frame.render();
                 }
                 _ => {}
             }

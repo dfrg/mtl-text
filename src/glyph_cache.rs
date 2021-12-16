@@ -76,20 +76,29 @@ impl GlyphCache {
                 )),
             });
         }
-        let atlas = atlas.as_mut()?;
-        let allocation = atlas
-            .allocator
-            .allocate(etagere::size2(width as i32, height as i32))?;
-        let rect = allocation.rectangle;
-        let x0 = rect.min.x as f32 / ATLAS_SIZE as f32;
-        let y0 = rect.min.y as f32 / ATLAS_SIZE as f32;
-        let x1 = (rect.min.x as f32 + width as f32) / ATLAS_SIZE as f32;
-        let y1 = (rect.min.y as f32 + height as f32) / ATLAS_SIZE as f32;
-        let entry = GlyphEntry {
-            is_color,
-            uv: [x0, y0, x1, y1],
-            left: 0,
-            top: 0,
+        let entry = if width == 0 || height == 0 {
+            GlyphEntry {
+                is_color,
+                uv: [0.0; 4],
+                left: 0,
+                top: 0,
+            }
+        } else {
+            let atlas = atlas.as_mut()?;
+            let allocation = atlas
+                .allocator
+                .allocate(etagere::size2(width as i32, height as i32))?;
+            let rect = allocation.rectangle;
+            let x0 = rect.min.x as f32 / ATLAS_SIZE as f32;
+            let y0 = rect.min.y as f32 / ATLAS_SIZE as f32;
+            let x1 = (rect.min.x as f32 + width as f32) / ATLAS_SIZE as f32;
+            let y1 = (rect.min.y as f32 + height as f32) / ATLAS_SIZE as f32;
+            GlyphEntry {
+                is_color,
+                uv: [x0, y0, x1, y1],
+                left: 0,
+                top: 0,
+            }
         };
         self.map.insert(key, entry);
         self.map.get_mut(&key)

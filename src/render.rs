@@ -8,16 +8,17 @@ use swash::scale::{outline::Outline, ScaleContext};
 use swash::zeno::{Origin, Placement};
 
 pub struct Renderer<G> {
-    pub device: Device,
     pub layer: MetalLayer,
-    pub queue: CommandQueue,
-    pub width: u32,
-    pub height: u32,
-    pub glyph_cache: GlyphCache,
-    pub glyph_rasterizer: G,
+    device: Device,
+    queue: CommandQueue,
+    width: u32,
+    height: u32,
+    glyph_cache: GlyphCache,
+    glyph_rasterizer: G,
     scale_ctx: ScaleContext,
     glyphs: Vec<RunGlyph>,
     runs: Vec<RunRange>,
+    quads: Quads,
 }
 
 impl<G: GlyphRasterizer> Renderer<G> {
@@ -30,6 +31,7 @@ impl<G: GlyphRasterizer> Renderer<G> {
         let queue = device.new_command_queue();
         let glyph_rasterizer = G::new(&device);
         let glyph_cache = GlyphCache::new(device.clone());
+        let quads = Quads::new(&device);
         Self {
             device,
             layer,
@@ -41,6 +43,7 @@ impl<G: GlyphRasterizer> Renderer<G> {
             scale_ctx: ScaleContext::new(),
             glyphs: vec![],
             runs: vec![],
+            quads,
         }
     }
 
@@ -129,7 +132,6 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         if self.flush_cache {
             self.build_cache();
         }
-        self.render_cached();
         let drawable = match self.r.layer.next_drawable() {
             Some(drawable) => drawable,
             None => return,
@@ -143,12 +145,16 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
         color_attachment.set_store_action(MTLStoreAction::Store);
         let cmdbuf = self.r.queue.new_command_buffer();
         let encoder = cmdbuf.new_render_command_encoder(&pass);
+
+        self.r.quads.prepare(self.r.glyphs.len());
+
         encoder.end_encoding();
         cmdbuf.present_drawable(&drawable);
         cmdbuf.commit();
     }
 
     fn build_cache(&mut self) {
+        println!("rebuilding cache!");
         use super::glyph::Glyph;
         use super::glyph_cache::ATLAS_SIZE;
         self.r.glyph_cache.clear();
@@ -219,8 +225,6 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
             self.r.glyph_rasterizer.release(id);
         }
     }
-
-    fn render_cached(&mut self) {}
 }
 
 struct RunRange {

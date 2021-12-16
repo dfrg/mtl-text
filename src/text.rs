@@ -48,8 +48,8 @@ impl TextBuilder {
         for ch in text.chars() {
             let id = charmap.map(ch);
             let advance = glyph_metrics.advance_width(id);
-            let end = self.x + advance;
-            let line = self.lines.last_mut().unwrap();
+            let mut end = self.x + advance;
+            let mut line = self.lines.last_mut().unwrap();
             if ch == '\n' || end > self.max_width {
                 line.runs.push(Run {
                     font: font.clone(),
@@ -61,14 +61,16 @@ impl TextBuilder {
                 ids.clear();
                 advances.clear();
                 self.x = 0.0;
+                self.y = (line.y + line.ascent + line.descent).round();
+                self.lines.push(Line {
+                    y: self.y,
+                    ..Default::default()
+                });
+                line = self.lines.last_mut().unwrap();
+                end = advance;
             }
             line.ascent = line.ascent.max(ascent);
             line.descent = line.descent.max(descent);
-            self.y = (line.y + line.ascent + line.descent).round();
-            self.lines.push(Line {
-                y: self.y,
-                ..Default::default()
-            });
             self.x = end;
             ids.push(id);
             advances.push(advance)
