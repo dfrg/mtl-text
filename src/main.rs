@@ -47,7 +47,7 @@ fn main() {
                     let text = mtl_text::text::TextBuilder::new(None)
                         .add_text(&font, 48., [1., 1., 1., 1.], "Hello ")
                         .add_text(&font, 64., [1., 1., 0., 1.], "Metal")
-                        .add_text(&font, 48., [1., 1., 1., 1.], " world! ")
+                        .add_text(&font, 48., [1., 1., 1., 1.], " world!\nOn a new line?")
                         .build();
                     let mut frame = renderer.new_frame([0.2, 0.2, 0.2, 1.0]);
                     frame.draw_text(20., 20., &text);

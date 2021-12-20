@@ -71,6 +71,9 @@ impl TextBuilder {
             }
             line.ascent = line.ascent.max(ascent);
             line.descent = line.descent.max(descent);
+            if ch == '\n' {
+                continue;
+            }
             self.x = end;
             ids.push(id);
             advances.push(advance)
