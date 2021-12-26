@@ -2,15 +2,17 @@ use super::glyph::Glyph;
 use metal::*;
 use swash::scale::{image::Image, ScaleContext};
 
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Format {
     A8,
     Rgba8,
 }
 
 pub trait GlyphRasterizer {
-    fn new(device: &DeviceRef) -> Self;
+    fn new(device: &DeviceRef, queue: &CommandQueueRef) -> Self;
     fn begin(&mut self, format: Format, width: u32, height: u32);
-    fn add_glyph(&mut self, glyph: &Glyph);
+    // Unsafe because pointer in glyph must reference valid slice.
+    unsafe fn add_glyph(&mut self, glyph: &Glyph);
     fn record(&mut self, cmdbuf: &CommandBufferRef, target: &TextureRef) -> u32;
     fn release(&mut self, id: u32);
 }
@@ -26,7 +28,7 @@ pub struct SoftwareGlyphRasterizer {
 }
 
 impl GlyphRasterizer for SoftwareGlyphRasterizer {
-    fn new(_device: &DeviceRef) -> Self {
+    fn new(_device: &DeviceRef, _queue: &CommandQueueRef) -> Self {
         Self {
             scx: ScaleContext::new(),
             image: Image::new(),
@@ -52,7 +54,8 @@ impl GlyphRasterizer for SoftwareGlyphRasterizer {
         self.pixbuf.resize(size, 0);
     }
 
-    fn add_glyph(&mut self, glyph: &Glyph) {
+    unsafe fn add_glyph(&mut self, glyph: &Glyph) {
+        println!("adding glyph {:?}", glyph);
         use swash::scale::{Render, Source};
         use swash::zeno::{Transform, Vector};
         let mut scaler = self
@@ -133,14 +136,20 @@ mod tga {
     use std::fs::File;
     use std::io::{self, Write};
     use std::slice;
-    
+
     fn write<W: Write, T>(w: &mut W, v: T) -> io::Result<()> {
         let size = std::mem::size_of::<T>();
         let bytes = unsafe { slice::from_raw_parts(&v as *const T as *const u8, size) };
         w.write_all(bytes)
     }
-    
-    pub fn write_image(buf: &[u8], width: u32, height: u32, channels: u32, path: &str) -> io::Result<()> {
+
+    pub fn write_image(
+        buf: &[u8],
+        width: u32,
+        height: u32,
+        channels: u32,
+        path: &str,
+    ) -> io::Result<()> {
         let f = File::create(path)?;
         let mut f = std::io::BufWriter::new(f);
         let w = width as usize;

@@ -33,7 +33,7 @@ impl<G: GlyphRasterizer> Renderer<G> {
         layer.set_pixel_format(TARGET_FORMAT);
         layer.set_presents_with_transaction(false);
         let queue = device.new_command_queue();
-        let glyph_rasterizer = G::new(&device);
+        let glyph_rasterizer = G::new(&device, &queue);
         let glyph_cache = GlyphCache::new(device.clone());
         let quads = QuadBatch::new(&device);
         let options = CompileOptions::new();
@@ -247,18 +247,20 @@ impl<'a, G: GlyphRasterizer> FrameRenderer<'a, G> {
                         placement.width as u16,
                         placement.height as u16,
                     ];
-                    self.r.glyph_rasterizer.add_glyph(&Glyph {
-                        unique_id: font.key.value(),
-                        font_data: font.data.as_ptr(),
-                        font_data_len: font.data.len() as _,
-                        font_size: run.font_size,
-                        glyph_id: glyph.id,
-                        transform,
-                        rect,
-                        subpx: glyph.subpx.to_f32(),
-                        variations: std::ptr::null(),
-                        num_variations: 0,
-                    });
+                    unsafe {
+                        self.r.glyph_rasterizer.add_glyph(&Glyph {
+                            unique_id: font.key.value(),
+                            font_data: font.data.as_ptr(),
+                            font_data_len: font.data.len() as _,
+                            font_size: run.font_size,
+                            glyph_id: glyph.id,
+                            transform,
+                            rect,
+                            subpx: glyph.subpx.to_f32(),
+                            variations: std::ptr::null(),
+                            num_variations: 0,
+                        });
+                    }
                 } else {
                     continue;
                 }

@@ -13,3 +13,6 @@ etagere = "0.2.6"
 metal = "0.22"
 cocoa = "0.24.0"
 objc = "0.2.5"
+
+piet-gpu = { path = "../piet-gpu/piet-gpu" }
+piet-gpu-hal = { path = "../piet-gpu/piet-gpu-hal" }
