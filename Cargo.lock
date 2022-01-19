@@ -1072,6 +1072,7 @@ dependencies = [
 [[package]]
 name = "piet-gpu"
 version = "0.1.0"
+source = "git+https://github.com/linebender/piet-gpu?rev=2613a7e#2613a7e500a8f6c0a2ebf0a88302bb4558ce18c3"
 dependencies = [
  "bytemuck",
  "clap",
@@ -1092,6 +1093,7 @@ dependencies = [
 [[package]]
 name = "piet-gpu-derive"
 version = "0.0.0"
+source = "git+https://github.com/linebender/piet-gpu?rev=2613a7e#2613a7e500a8f6c0a2ebf0a88302bb4558ce18c3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1101,6 +1103,7 @@ dependencies = [
 [[package]]
 name = "piet-gpu-hal"
 version = "0.1.0"
+source = "git+https://github.com/linebender/piet-gpu?rev=2613a7e#2613a7e500a8f6c0a2ebf0a88302bb4558ce18c3"
 dependencies = [
  "ash",
  "ash-window",
@@ -1119,6 +1122,7 @@ dependencies = [
 [[package]]
 name = "piet-gpu-types"
 version = "0.0.0"
+source = "git+https://github.com/linebender/piet-gpu?rev=2613a7e#2613a7e500a8f6c0a2ebf0a88302bb4558ce18c3"
 dependencies = [
  "half",
  "piet-gpu-derive",

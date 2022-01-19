@@ -87,6 +87,7 @@ impl GlyphRasterizer for PgpuRasterizer {
     }
 
     fn release(&mut self, _id: u32) {
-        // TODO: worry about this later.
+        self.glyph_renderer.reset();
+        // TODO: worry about freeing resources / managing overlapping submits
     }
 }
