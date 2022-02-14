@@ -17,8 +17,9 @@ fn main() {
         .with_title("Metal Text")
         .build(&event_loop)
         .unwrap();
-    use mtl_text::glyph_rasterizer::SoftwareGlyphRasterizer;
-    let mut renderer = mtl_text::render::Renderer::<SoftwareGlyphRasterizer>::new();
+    use mtl_text::pgpu_rasterizer::PgpuRasterizer;
+    //use mtl_text::glyph_rasterizer::SoftwareGlyphRasterizer;
+    let mut renderer = mtl_text::render::Renderer::<PgpuRasterizer>::new();
     unsafe {
         let view = window.ns_view() as cocoa_id;
         view.setWantsLayer(YES);

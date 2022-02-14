@@ -7,7 +7,7 @@ pub struct FontVariation {
     pub value: f32,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct Glyph {
     pub unique_id: u64,
